@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Xml.Linq;
 using FluentAssertions;
+using log4net;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
@@ -49,6 +50,65 @@ namespace apache.log4net.Extensions.Logging.Tests
             logger.IsEnabled(LogLevel.Information).Should().BeTrue("INFO log level should be enabled");
             logger.IsEnabled(LogLevel.Debug).Should().BeTrue("DEBUG log level should be enabled");
             logger.IsEnabled(LogLevel.Trace).Should().BeFalse("TRACE log level should be disabled");
+        }
+
+        [Fact]
+        public void BeginScope_KeyValuePairAddsToThreadContext()
+        {
+            string categoryName = Guid.NewGuid().ToString();
+            var configuration = CreateConfiguration("DEBUG", new Dictionary<string, string>());
+            var provider = CreateProvider(configuration);
+
+            var logger = provider.CreateLogger(categoryName);
+            logger.BeginScope(new Dictionary<string, object>
+                {
+                    { "key 1", "value 1"},
+                    { "key 2", "value 2"},
+                });
+
+            ThreadContext.Stacks["key 1"].Count.ShouldBeEquivalentTo(1);
+            ThreadContext.Stacks["key 1"].Pop().ShouldBeEquivalentTo("value 1");
+            ThreadContext.Stacks["key 2"].Count.ShouldBeEquivalentTo(1);
+            ThreadContext.Stacks["key 2"].Pop().ShouldBeEquivalentTo("value 2");
+        }
+
+        [Fact]
+        public void BeginScope_TupleAddsToThreadContext()
+        {
+            string categoryName = Guid.NewGuid().ToString();
+            var configuration = CreateConfiguration("DEBUG", new Dictionary<string, string>());
+            var provider = CreateProvider(configuration);
+
+            var logger = provider.CreateLogger(categoryName);
+            logger.BeginScope(new (string, object)[]
+                {
+                    ( "key 1", "value 1"),
+                    ( "key 2", "value 2"),
+                });
+
+            ThreadContext.Stacks["key 1"].Count.ShouldBeEquivalentTo(1);
+            ThreadContext.Stacks["key 1"].Pop().ShouldBeEquivalentTo("value 1");
+            ThreadContext.Stacks["key 2"].Count.ShouldBeEquivalentTo(1);
+            ThreadContext.Stacks["key 2"].Pop().ShouldBeEquivalentTo("value 2");
+        }
+
+        [Fact]
+        public void BeginScope_DisposeRemovesScope()
+        {
+            string categoryName = Guid.NewGuid().ToString();
+            var configuration = CreateConfiguration("DEBUG", new Dictionary<string, string>());
+            var provider = CreateProvider(configuration);
+
+            provider.CreateLogger(categoryName)
+                .BeginScope(new Dictionary<string, object>
+                {
+                    { "key 1", "value 1"},
+                    { "key 2", "value 2"},
+                })
+                .Dispose();
+
+            ThreadContext.Stacks["key 1"].Count.ShouldBeEquivalentTo(0);
+            ThreadContext.Stacks["key 2"].Count.ShouldBeEquivalentTo(0);
         }
 
         [Fact]

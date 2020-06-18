@@ -1,5 +1,7 @@
 ﻿using log4net;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using log4net.Core;
 using Microsoft.Extensions.Logging;
 using ILogger = Microsoft.Extensions.Logging.ILogger;
@@ -18,6 +20,15 @@ namespace apache.log4net.Extensions.Logging
 
         public IDisposable BeginScope<TState>(TState state)
         {
+            var pairs = state as IEnumerable<KeyValuePair<string, object>>;
+            var tuples = state as IEnumerable<(string, object)>;
+            var disposables = pairs?.Select(pair => ThreadContext.Stacks[pair.Key].Push(pair.Value.ToString()))
+                              ?? tuples?.Select(pair => ThreadContext.Stacks[pair.Item1].Push(pair.Item2.ToString()));
+            if (disposables != null)
+            {
+                return new AggregatedDisposable(disposables);
+            }
+
             return null;
         }
 
